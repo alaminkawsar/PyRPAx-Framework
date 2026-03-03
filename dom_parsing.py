@@ -6,8 +6,11 @@ from selenium.webdriver.common.by import By
 
 # ---------------- CONFIG ----------------
 URL = "https://my402955.s4hana.cloud.sap/ui#Shell-home"  # Replace with your SAP URL
-OUTPUT_FOLDER = "elements_screenshots"
-JSON_FILE = "object_repository.json"
+
+OUTPUT_FOLDER = "object_repository"
+screenshot_path = os.path.join(OUTPUT_FOLDER, "screenshots")
+os.makedirs(screenshot_path, exist_ok=True)
+JSON_FILE = f"{OUTPUT_FOLDER}/object_repository.json"
 
 # ---------------- SETUP ----------------
 driver = webdriver.Chrome()
@@ -16,8 +19,8 @@ driver.get(URL)
 time.sleep(5)  # Better to use WebDriverWait in production
 
 # Create folder if not exists
-if not os.path.exists(OUTPUT_FOLDER):
-    os.makedirs(OUTPUT_FOLDER)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+os.makedirs(screenshot_path, exist_ok=True)
 
 # ---------------- SMART XPATH ----------------
 xpath_query = """
