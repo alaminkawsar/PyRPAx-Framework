@@ -1,0 +1,46 @@
+[
+    {
+        "element_name": "input_0",
+        "tag": "input",
+        "text": "",
+        "id": "j_username",
+        "name": "j_username",
+        "class": "fn-input__text-field ids-input ids-input--text ids-input--clear js-has-input-clear js-login-toggle-active-input-user",
+        "type": "text",
+        "role": null,
+        "xpath": "//input[@id='j_username']"
+    },
+    {
+        "element_name": "input_2",
+        "tag": "input",
+        "text": "",
+        "id": "j_password",
+        "name": "j_password",
+        "class": "fn-input__text-field ids-input ids-input--text ids-input--reveal js-login-toggle-active-input-password",
+        "type": "password",
+        "role": null,
+        "xpath": "//input[@id='j_password']"
+    },
+    {
+        "element_name": "a_6",
+        "tag": "a",
+        "text": "Forgot password?",
+        "id": "forgotPasswordLink",
+        "name": "",
+        "class": "",
+        "type": "",
+        "role": null,
+        "xpath": "//a[@id='forgotPasswordLink']"
+    },
+    {
+        "element_name": "button_7",
+        "tag": "button",
+        "text": "Continue",
+        "id": "logOnFormSubmit",
+        "name": "",
+        "class": "ids-button fn-button ids-button--primary fn-button--emphasized ids-button--login js-button-login",
+        "type": "submit",
+        "role": "button",
+        "xpath": "//button[@id='logOnFormSubmit']"
+    }
+]
