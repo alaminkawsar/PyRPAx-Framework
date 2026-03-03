@@ -5,11 +5,12 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 # ---------------- CONFIG ----------------
-URL = "https://my402955.s4hana.cloud.sap/ui#Shell-home"  # Replace with your SAP URL
+# URL = "https://my402955.s4hana.cloud.sap/ui#Shell-home"  # Replace with your SAP URL
+URL = "https://web.facebook.com/"
 
 OUTPUT_FOLDER = "object_repository"
-screenshot_path = os.path.join(OUTPUT_FOLDER, "screenshots")
-os.makedirs(screenshot_path, exist_ok=True)
+SCREENSHOT_FOLDER = os.path.join(OUTPUT_FOLDER, "screenshots")
+os.makedirs(SCREENSHOT_FOLDER, exist_ok=True)
 JSON_FILE = f"{OUTPUT_FOLDER}/object_repository.json"
 
 # ---------------- SETUP ----------------
@@ -20,7 +21,7 @@ time.sleep(5)  # Better to use WebDriverWait in production
 
 # Create folder if not exists
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(screenshot_path, exist_ok=True)
+os.makedirs(SCREENSHOT_FOLDER, exist_ok=True)
 
 # ---------------- SMART XPATH ----------------
 xpath_query = """
@@ -59,7 +60,7 @@ for index, el in enumerate(elements):
             continue
 
         element_name = f"{el.tag_name}_{index}"
-        screenshot_path = os.path.join(OUTPUT_FOLDER, f"{element_name}.png")
+        screenshot_path = os.path.join(SCREENSHOT_FOLDER, f"{element_name}.png")
 
         # Save element screenshot directly (better than manual cropping)
         el.screenshot(screenshot_path)
