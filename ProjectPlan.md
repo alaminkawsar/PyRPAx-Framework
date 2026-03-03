@@ -1,6 +1,6 @@
 # Project and Schedule
 ## Requirements
-We need to create object repository **UiPath** compatible *object repository* which **UiPath Studio** do manually by selecting each ui element. The process should be automated in our module. \
+We need to create **UiPath** compatible *object repository* which **UiPath Studio** do manually by selecting each ui element. The process should be automated in our module. \
 *```Object Repository must be runnable in the UiPath Studio.```*
 
 ---
