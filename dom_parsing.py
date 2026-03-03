@@ -4,9 +4,11 @@ import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
+from utils.object_repository import ObjectRepository
+
 # ---------------- CONFIG ----------------
 # URL = "https://my402955.s4hana.cloud.sap/ui#Shell-home"  # Replace with your SAP URL
-URL = "https://web.facebook.com/"
+URL = "https://my402955.s4hana.cloud.sap/ui#Shell-home"
 
 OUTPUT_FOLDER = "object_repository"
 SCREENSHOT_FOLDER = os.path.join(OUTPUT_FOLDER, "screenshots")
@@ -96,3 +98,37 @@ with open(JSON_FILE, "w", encoding="utf-8") as f:
 
 print("Done. Object repository generated successfully.")
 driver.quit()
+
+# ---------------- CREATE UIPATH FORMAT ----------------
+# Use ObjectRepository to build UiPath-style repository
+app_name = "SAPApp"  # You can parameterize this
+screen_name = "ShellHome"  # You can parameterize this
+repo = ObjectRepository()
+repo.add_application(app_name, version="1.0.0", app_type="Web")
+repo.add_screen(app_name, screen_name, url=URL)
+
+for el in object_repository:
+    # Try to choose selector type and value
+    selector = None
+    selector_type = None
+    if el["id"]:
+        selector = el["id"]
+        selector_type = "id"
+    elif el["class"]:
+        selector = el["class"]
+        selector_type = "class"
+    elif el["role"]:
+        selector = el["role"]
+        selector_type = "role"
+    elif el["tag"]:
+        selector = el["tag"]
+        selector_type = "tag"
+    else:
+        selector = el["element_name"]
+        selector_type = "name"
+    # Element type: use tag/type/role
+    element_type = el["type"] or el["tag"] or el["role"] or "Unknown"
+    repo.add_element(app_name, screen_name, el["element_name"], selector, selector_type, element_type)
+
+repo.save()
+print("UiPath-style object repository saved as repository.json")
