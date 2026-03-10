@@ -2,12 +2,13 @@ from playwright.sync_api import sync_playwright, Error
 import json
 import os
 import sys
+import re
 from urllib.parse import urlparse
 from PIL import Image, ImageDraw, ImageFont
-import re
+
 
 # -----------------------------
-# Base name from URL
+# Base name
 # -----------------------------
 def get_base_name(url):
 
@@ -21,11 +22,8 @@ def get_base_name(url):
 
 
 # -----------------------------
-# Screen name from TAB TITLE
+# Safe page title
 # -----------------------------
-import re
-
-
 def get_screen_name(page):
 
     try:
@@ -35,13 +33,10 @@ def get_screen_name(page):
         if not title:
             title = "untitled"
 
-        # remove invalid filename chars
         title = re.sub(r'[\\/*?:"<>|]', "_", title)
 
-        # remove extra spaces
         title = title.strip()
 
-        # limit length (important for Windows)
         title = title[:120]
 
         return title
@@ -57,12 +52,12 @@ def save_repo(repo, base_name):
 
     os.makedirs("output", exist_ok=True)
 
-    file_path = f"output/{base_name}.json"
+    path = f"output/{base_name}.json"
 
-    with open(file_path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(repo, f, indent=4)
 
-    print("Saved ->", file_path)
+    print("Saved ->", path)
 
 
 # -----------------------------
@@ -74,15 +69,298 @@ def take_screenshot(page, base_name, screen_name):
 
     os.makedirs(dir_path, exist_ok=True)
 
-    file_path = f"{dir_path}/{screen_name}.png"
+    path = f"{dir_path}/{screen_name}.png"
 
-    page.screenshot(path=file_path, full_page=True)
+    page.screenshot(path=path, full_page=True)
 
-    print("Screenshot ->", file_path)
+    print("Screenshot ->", path)
 
+
+# -----------------------------
+# FULL control detection
+# -----------------------------
+def detect_control(tag, el_type, role, el):
+
+    tag = (tag or "").lower()
+    el_type = (el_type or "").lower()
+    role = (role or "").lower()
+
+    try:
+        aria_checked = el.get_attribute("aria-checked")
+        aria_selected = el.get_attribute("aria-selected")
+        aria_expanded = el.get_attribute("aria-expanded")
+        href = el.get_attribute("href")
+        onclick = el.get_attribute("onclick")
+        tabindex = el.get_attribute("tabindex")
+    except:
+        aria_checked = None
+        aria_selected = None
+        aria_expanded = None
+        href = None
+        onclick = None
+        tabindex = None
+
+    if tag == "input":
+
+        if el_type in ["text", ""]:
+            return "textbox"
+
+        if el_type == "password":
+            return "password"
+
+        if el_type == "checkbox":
+            return "checkbox"
+
+        if el_type == "radio":
+            return "radio"
+
+        if el_type == "file":
+            return "file"
+
+        if el_type == "date":
+            return "date"
+
+        if el_type == "number":
+            return "number"
+
+        if el_type == "email":
+            return "email"
+
+        if el_type == "search":
+            return "search"
+
+        if el_type == "submit":
+            return "submit"
+
+        if el_type == "button":
+            return "button"
+
+        return "input"
+
+    if tag == "textarea":
+        return "textarea"
+
+    if tag == "select":
+        return "dropdown"
+
+    if tag == "button":
+        return "button"
+
+    if tag == "a":
+        return "link"
+
+    if role == "button":
+        return "button"
+
+    if role == "checkbox":
+        return "checkbox"
+
+    if role == "radio":
+        return "radio"
+
+    if role == "textbox":
+        return "textbox"
+
+    if role == "combobox":
+        return "combobox"
+
+    if role == "switch":
+        return "switch"
+
+    if role == "tab":
+        return "tab"
+
+    if role == "menuitem":
+        return "menu"
+
+    if aria_checked is not None:
+        return "checkbox"
+
+    if aria_selected is not None:
+        return "selectable"
+
+    if aria_expanded is not None:
+        return "expand"
+
+    if onclick:
+        return "button"
+
+    if tabindex is not None:
+        return "focusable"
+
+    return "element"
+
+
+# -----------------------------
+# Label text
+# -----------------------------
+def get_label_text(el):
+
+    try:
+
+        label = el.evaluate(
+            """e => {
+                if (e.labels && e.labels.length > 0)
+                    return e.labels[0].innerText
+                return null
+            }"""
+        )
+
+        return label
+
+    except:
+        return None
+
+
+# -----------------------------
+# Extract elements
+# -----------------------------
+def extract_elements(page, screen_name, repo):
+
+    selectors = [
+
+        "input:not([type='hidden'])",
+        "textarea",
+        "select",
+        "button",
+        "a",
+        "label",
+
+        "[role='button']",
+        "[role='checkbox']",
+        "[role='radio']",
+        "[role='textbox']",
+        "[role='combobox']",
+        "[role='switch']",
+
+        "[aria-label]",
+        "[aria-checked]",
+        "[aria-selected]",
+
+        "[tabindex]",
+
+        "[data-testid]",
+        "[data-id]",
+    ]
+
+    if screen_name not in repo["pages"]:
+        repo["pages"][screen_name] = []
+
+    elements = []
+
+    for s in selectors:
+
+        for el in page.query_selector_all(s):
+            elements.append((el, s))
+
+    print(f"[{screen_name}] Found {len(elements)}")
+
+    for idx, (el, sel) in enumerate(elements):
+
+        try:
+
+            box = el.bounding_box()
+
+            if not box:
+                continue
+
+            if box["width"] < 5 or box["height"] < 5:
+                continue
+
+            tag = el.evaluate(
+                "e => e.tagName.toLowerCase()"
+            )
+
+            el_type = el.get_attribute("type")
+            role = el.get_attribute("role")
+
+            text = None
+
+            if tag != "input":
+                text = el.inner_text()
+            else:
+                text = el.get_attribute("value")
+
+            el_id = el.get_attribute("id")
+
+            name_attr = el.get_attribute("name")
+
+            placeholder = el.get_attribute("placeholder")
+
+            autocomplete = el.get_attribute("autocomplete")
+
+            title = el.get_attribute("title")
+
+            aria_label = el.get_attribute("aria-label")
+
+            el_class = el.get_attribute("class")
+
+            data_testid = el.get_attribute("data-testid")
+
+            data_id = el.get_attribute("data-id")
+
+            label = get_label_text(el)
+
+            control_type = detect_control(
+                tag,
+                el_type,
+                role,
+                el
+            )
+
+            info = {
+
+                "name": f"{tag}_{idx}",
+
+                "control_type": control_type,
+
+                "tag": tag,
+
+                "text": text,
+
+                "type": el_type,
+
+                "id": el_id,
+
+                "name_attr": name_attr,
+
+                "placeholder": placeholder,
+
+                "autocomplete": autocomplete,
+
+                "title": title,
+
+                "label": label,
+
+                "class": el_class,
+
+                "role": role,
+
+                "aria_label": aria_label,
+
+                "data_testid": data_testid,
+
+                "data_id": data_id,
+
+                "selector": sel,
+
+                "box": box,
+            }
+
+            if info not in repo["pages"][screen_name]:
+                repo["pages"][screen_name].append(info)
+
+        except:
+            pass
+
+
+# -----------------------------
+# DRAW ALL PAGES
+# -----------------------------
 def draw_all_pages(repo, base_name):
 
     img_dir = f"output/screenshots/{base_name}"
+
     out_dir = f"{img_dir}/annotated"
 
     os.makedirs(out_dir, exist_ok=True)
@@ -92,9 +370,7 @@ def draw_all_pages(repo, base_name):
     except:
         font = ImageFont.load_default()
 
-    pages = repo["pages"]
-
-    for page_name, elements in pages.items():
+    for page_name, elements in repo["pages"].items():
 
         img_path = f"{img_dir}/{page_name}.png"
 
@@ -125,12 +401,16 @@ def draw_all_pages(repo, base_name):
 
             if t == "textbox":
                 color = "blue"
+
             elif t == "password":
                 color = "purple"
+
             elif t == "button":
                 color = "green"
+
             elif t == "checkbox":
                 color = "orange"
+
             elif t == "radio":
                 color = "yellow"
 
@@ -163,106 +443,18 @@ def draw_all_pages(repo, base_name):
         img.save(out_path)
 
         print("Annotated ->", out_path)
-# -----------------------------
-# Extract elements
-# -----------------------------
-def extract_elements(page, screen_name, repo):
-
-    selectors = [
-        "input:not([type='hidden'])",
-        "input[type='checkbox']",
-        "input[type='radio']",
-        "button",
-        "a",
-        "select",
-        "textarea",
-        "label",
-        "[role='button']",
-        "[role='checkbox']",
-        "[role='radio']",
-        "[aria-checked]",
-    ]
-
-    if screen_name not in repo["pages"]:
-        repo["pages"][screen_name] = []
-
-    elements = []
-
-    # keep selector with element
-    for s in selectors:
-        found = page.query_selector_all(s)
-
-        for el in found:
-            elements.append((el, s))
-
-    print(f"[{screen_name}] Found {len(elements)}")
-
-    for idx, (el, sel) in enumerate(elements):
-
-        try:
-
-            box = el.bounding_box()
-
-            if not box:
-                continue
-
-            if box["width"] < 5 or box["height"] < 5:
-                continue
-
-            tag = el.evaluate(
-                "e => e.tagName.toLowerCase()"
-            )
-
-            el_type = el.get_attribute("type")
-
-            text = ""
-
-            if tag not in ["input"]:
-                text = el.inner_text()
-
-            else:
-                text = el.get_attribute("value")
-
-            el_info = {
-                "name": f"{tag}_{idx}",
-                "tag": tag,
-                "text": text,
-                "type": el_type,
-                "id": el.get_attribute("id"),
-                "class": el.get_attribute("class"),
-                "role": el.get_attribute("role"),
-                "aria_label": el.get_attribute("aria-label"),
-                "selector": sel,
-                "box": box,
-            }
-
-            # avoid duplicate
-            if el_info not in repo["pages"][screen_name]:
-                repo["pages"][screen_name].append(
-                    el_info
-                )
-
-        except Exception:
-            pass
 
 
 # -----------------------------
-# Main
+# MAIN
 # -----------------------------
 def main():
 
     if len(sys.argv) < 2:
-        print(
-            "Usage:\n"
-            "python script.py <url> [browser]"
-        )
+        print("Usage: python script.py <url>")
         sys.exit(1)
 
     url = sys.argv[1]
-
-    browser_name = (
-        sys.argv[2] if len(sys.argv) > 2 else "chromium"
-    )
 
     base_name = get_base_name(url)
 
@@ -275,12 +467,7 @@ def main():
 
         with sync_playwright() as p:
 
-            browser_type = getattr(
-                p,
-                browser_name
-            )
-
-            browser = browser_type.launch(
+            browser = p.chromium.launch(
                 headless=False
             )
 
@@ -288,61 +475,40 @@ def main():
 
             page = context.new_page()
 
-            # -------------------------
-            # Navigation handler
-            # -------------------------
             def on_nav(frame):
 
                 if frame != page.main_frame:
                     return
 
-                try:
+                page.wait_for_load_state("load")
 
-                    page.wait_for_load_state(
-                        "load"
-                    )
+                name = get_screen_name(page)
 
-                    screen_name = get_screen_name(
-                        page
-                    )
+                print("Navigated ->", name)
 
-                    print(
-                        "Navigated ->",
-                        screen_name
-                    )
+                extract_elements(
+                    page,
+                    name,
+                    repo
+                )
 
-                    extract_elements(
-                        page,
-                        screen_name,
-                        repo
-                    )
+                take_screenshot(
+                    page,
+                    base_name,
+                    name
+                )
 
-                    take_screenshot(
-                        page,
-                        base_name,
-                        screen_name
-                    )
-
-                    save_repo(
-                        repo,
-                        base_name
-                    )
-
-                except Error:
-                    pass
-
+                save_repo(
+                    repo,
+                    base_name
+                )
 
             page.on(
                 "framenavigated",
                 on_nav
             )
 
-            # -------------------------
-            # Close handler
-            # -------------------------
             def on_close():
-
-                print("Browser closed")
 
                 save_repo(
                     repo,
@@ -354,20 +520,14 @@ def main():
                     base_name
                 )
 
-
             context.on(
                 "close",
                 lambda _: on_close()
             )
 
-            # -------------------------
-            # Start
-            # -------------------------
             page.goto(url)
 
-            print(
-                "Running... close browser to stop"
-            )
+            print("Running...")
 
             page.wait_for_timeout(
                 999999999
