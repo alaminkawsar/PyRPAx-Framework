@@ -3,6 +3,7 @@ from extractor.element_extractor import ElementExtractor
 from repository.json_storage import JsonStorage
 from screenshot.screenshot_service import ScreenshotService
 from utils.name_utils import get_base_name, get_screen_name
+from screenshot.draw_annotator import DrawAnnotator
 from playwright.sync_api import Error
 
 import sys
@@ -28,6 +29,7 @@ def main():
     storage = JsonStorage()
 
     screenshot = ScreenshotService()
+    annotator = DrawAnnotator(base_name, repo)
 
     def on_nav(frame):
 
@@ -56,7 +58,6 @@ def main():
         extractor.extract(page, name)
 
         screenshot.take(page, base_name, name)
-
         storage.save(repo, base_name)
 
     page.on("framenavigated", on_nav)
@@ -70,6 +71,9 @@ def main():
 
     except Error:
         print("Stopped safely")
+        
+    # annotate the elements   
+    annotator.draw_all()
 
 if __name__ == "__main__":
     main()

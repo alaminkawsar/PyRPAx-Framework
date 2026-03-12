@@ -56,8 +56,8 @@ class ElementExtractor:
                 if not box:
                     continue
 
-                if box["width"] < 5 or box["height"] < 5:
-                    continue
+                # if box["width"] < 5 or box["height"] < 5:
+                #     continue
 
                 tag = el.evaluate(
                     "e => e.tagName.toLowerCase()"
