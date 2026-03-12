@@ -33,9 +33,24 @@ def main():
         if frame != page.main_frame:
             return
 
-        page.wait_for_load_state("load")
+        try:
+            # wait DOM
+            page.wait_for_load_state("load")
+
+            # wait ajax / api
+            page.wait_for_load_state("networkidle")
+
+            # wait UI render
+            page.wait_for_timeout(700)
+
+        except:
+            pass
 
         name = get_screen_name(page)
+
+        print("Loaded ->", name)
+
+        # screenshot AFTER full load
 
         extractor.extract(page, name)
 
