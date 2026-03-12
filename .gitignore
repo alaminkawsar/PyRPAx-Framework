@@ -3,3 +3,4 @@ input_files/
 demo_repo
 UiPathProject/
 output
+__pycache__

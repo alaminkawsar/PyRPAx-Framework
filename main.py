@@ -58,7 +58,6 @@ def main():
         extractor.extract(page, name)
 
         screenshot.take(page, base_name, name)
-
         storage.save(repo, base_name)
 
     page.on("framenavigated", on_nav)
