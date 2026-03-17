@@ -31,49 +31,103 @@ def main():
     screenshot = ScreenshotService()
     annotator = DrawAnnotator(base_name, repo)
 
+    last_screen = {"name": None}
+
+
+    # -----------------------------
+    # COMMON UI CHANGE HANDLER
+    # -----------------------------
+    def handle_ui_change():
+
+        try:
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(700)
+        except:
+            pass
+
+        name = get_screen_name(page)
+
+        # prevent duplicate extraction
+        if name == last_screen["name"]:
+            return
+
+        last_screen["name"] = name
+
+        print("Loaded ->", name)
+
+        extractor.extract(page, name)
+
+        screenshot.take(page, base_name, name)
+
+        storage.save(repo, base_name)
+
+
+    # -----------------------------
+    # NAVIGATION (URL change)
+    # -----------------------------
     def on_nav(frame):
 
         if frame != page.main_frame:
             return
 
         try:
-            # wait DOM
             page.wait_for_load_state("load")
-
-            # wait ajax / api
             page.wait_for_load_state("networkidle")
-
-            # wait UI render
             page.wait_for_timeout(700)
-
         except:
             pass
 
-        name = get_screen_name(page)
+        handle_ui_change()
 
-        print("Loaded ->", name)
 
-        # screenshot AFTER full load
+    # -----------------------------
+    # AJAX / FETCH / API change
+    # -----------------------------
+    def on_response(response):
 
-        extractor.extract(page, name)
+        try:
+            if response.request.resource_type in ["xhr", "fetch"]:
+                handle_ui_change()
+        except:
+            pass
 
-        screenshot.take(page, base_name, name)
-        storage.save(repo, base_name)
 
+    # -----------------------------
+    # DOM change (textfield submit case)
+    # -----------------------------
+    def on_dom_loaded(_):
+
+        try:
+            page.wait_for_timeout(500)
+            handle_ui_change()
+        except:
+            pass
+
+
+    # -----------------------------
+    # EVENT LISTENERS
+    # -----------------------------
     page.on("framenavigated", on_nav)
 
+    page.on("response", on_response)
+
+    page.on("domcontentloaded", on_dom_loaded)
+
+
+    # -----------------------------
+    # START
+    # -----------------------------
     page.goto(url)
-    
+
     try:
-        page.wait_for_timeout(
-            999999999
-        )
+        page.wait_for_timeout(999999999)
 
     except Error:
         print("Stopped safely")
-        
-    # annotate the elements   
+
+    # annotate the elements
     annotator.draw_all()
+
 
 if __name__ == "__main__":
     main()
