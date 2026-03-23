@@ -55,15 +55,24 @@ def main():
 
         print("Loaded ->", name)
 
-        # extractor.extract(page, name)
+        # -------- MAIN PAGE EXTRACTION (unchanged behavior)
+        try:
+            extractor.extract(page, name)
+        except:
+            pass
+
+        # -------- IFRAME EXTRACTION (new)
         for frame in page.frames:
+            if frame == page.main_frame:
+                continue
+
             try:
                 extractor.extract(frame, name)
             except:
                 pass
 
-
         screenshot.take(page, base_name, name)
+
         storage.save(repo, base_name)
 
 
@@ -113,9 +122,7 @@ def main():
     # EVENT LISTENERS
     # -----------------------------
     page.on("framenavigated", on_nav)
-
     page.on("response", on_response)
-
     page.on("domcontentloaded", on_dom_loaded)
 
 
