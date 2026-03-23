@@ -55,10 +55,15 @@ def main():
 
         print("Loaded ->", name)
 
-        extractor.extract(page, name)
+        # extractor.extract(page, name)
+        for frame in page.frames:
+            try:
+                extractor.extract(frame, name)
+            except:
+                pass
+
 
         screenshot.take(page, base_name, name)
-
         storage.save(repo, base_name)
 
 
