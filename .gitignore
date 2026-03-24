@@ -5,3 +5,4 @@ UiPathProject/
 output
 __pycache__
 notes.txt
+*.pyc
