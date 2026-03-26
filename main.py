@@ -6,6 +6,9 @@ from utils.name_utils import get_base_name, get_screen_name, get_page_key
 from screenshot.draw_annotator import DrawAnnotator
 from playwright.sync_api import Error
 
+from common.logger import Logger
+logger = Logger.get_logger("main")
+
 import sys
 
 
@@ -21,15 +24,15 @@ def main():
     }
 
     browser = BrowserManager()
-
     page, context = browser.start()
+    logger.info("Browser instant created.")
+
 
     extractor = ElementExtractor(repo)
-
     storage = JsonStorage()
-
     screenshot = ScreenshotService()
     annotator = DrawAnnotator(base_name, repo)
+    logger.info("All Instant created Successfully.")
 
     last_screen = {"name": None}
 
@@ -40,7 +43,7 @@ def main():
     def handle_ui_change():
 
         try:
-            print("Waiting for load state...")
+            logger.info("Waiting for network idle...")
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(700)
         except:
@@ -139,7 +142,7 @@ def main():
         page.wait_for_timeout(999999999)
 
     except Error:
-        print("Stopped safely")
+        logger.info("Stopped safely")
 
     # annotate the elements
     annotator.draw_all()
