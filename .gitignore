@@ -6,3 +6,4 @@ output
 __pycache__
 notes.txt
 *.pyc
+app.log

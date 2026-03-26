@@ -43,7 +43,7 @@ def main():
     def handle_ui_change():
 
         try:
-            logger.info("Waiting for network idle...")
+            logger.info("handle_ui_change(): Waiting for network idle...")
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(700)
         except:
@@ -57,10 +57,11 @@ def main():
 
         last_screen["name"] = name
 
-        print("Loaded ->", name)
+        logger.info(f"Loaded -> {name}")
 
         # -------- MAIN PAGE EXTRACTION (unchanged behavior)
         try:
+            logger.info(f"Extracting from page: {page.url}")
             extractor.extract(page, name)
         except:
             pass
@@ -71,6 +72,7 @@ def main():
                 continue
 
             try:
+                logger.info(f"Extracting from frame: {frame.url}")
                 extractor.extract(frame, name)
             except:
                 pass
@@ -78,6 +80,7 @@ def main():
         screenshot.take(page, base_name, name)
 
         storage.save(repo, base_name)
+        logger.info("Data saved to repository.")
 
 
     # -----------------------------
@@ -89,12 +92,9 @@ def main():
             return
 
         try:
-            print("Navigated to:", frame.url)
-            print("Waiting for load state...")
+            logger.info(f"on_nav(): Navigated to: {frame.url}")
+            logger.info("on_nav(): Waiting for load state...")
             page.wait_for_load_state("load")
-            print("Waiting for network idle...")
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(700)
         except:
             pass
 
@@ -105,7 +105,8 @@ def main():
     # AJAX / FETCH / API change
     # -----------------------------
     def on_response(response):
-
+        logger.debug(f"on_response(): Response received: {response.url}")
+        logger.debug(f"on_response(): Resource type: {response.request.resource_type}")
         try:
             if response.request.resource_type in ["xhr", "fetch"]:
                 handle_ui_change()
