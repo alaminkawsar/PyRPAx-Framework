@@ -1,17 +1,17 @@
 # PyRPAx-Framework
 
-PyRPAx-Framework is a lightweight Python toolkit for capturing UI structure and visual state of web pages to support Robotic Process Automation (RPA) workflows, UI analysis, and automated element extraction. It uses Playwright for browser control, extracts structural and accessibility information about interactive elements, records screenshots, annotates them, and writes structured JSON output describing pages and controls.
+PyRPAx-Framework is a lightweight Python toolkit for capturing the UI structure and visual state of web pages to support Robotic Process Automation (RPA) workflows, UI analysis, and automated element extraction. It uses Playwright for browser control, extracts structural and accessibility information about interactive elements, records screenshots, annotates them, and writes structured JSON output describing pages and controls.
 
 This README documents the repository layout, explains the purpose of each script and module, and shows how to run the main capture flow and example scripts.
 
 Status
 ------
-Prototype / early-stage — functional scripts for DOM inspection and screenshot/annotation. Contributions, bug reports and improvements are welcome.
+Prototype / early-stage — functional scripts for DOM inspection, screenshot capture and annotation. Contributions, bug reports and improvements are welcome.
 
 Quick summary
 -------------
 - Main capture flow: `main.py` — run a Playwright browser, observe DOM changes and network events, extract interactive elements, save JSON describing pages and controls, take screenshots and annotate them.
-- Core browser control: `core/browser_manager.py` — starts Playwright and returns a page/context.
+- Core browser control: `core/browser_manager.py` — starts Playwright and returns a page & context.
 - Extraction: `extractor/` — element detection, control-type heuristics and label helpers.
 - Storage: `repository/json_storage.py` — writes output JSON after de-duplication.
 - Screenshot/annotation: `screenshot/` — take screenshots and draw element annotations.
@@ -37,7 +37,7 @@ PyRPAx-Framework/
   - draw_annotator.py     — draw boxes/annotations for discovered elements
 - simple_design/
   - main.py               — short Selenium-based example using a Page Object
-- dom_parsing.py          — utility script related to DOM parsing (extra helpers)
+- dom_parsing.py          — utility script related to DOM parsing (auxiliary helpers)
 - main.py                 — main capture workflow (Playwright-based)
 - requirements.txt        — runtime dependencies
 - env.txt                 — sample environment variables / notes
@@ -50,83 +50,142 @@ Files and purpose (detailed)
 main.py
 - Entry point for the Playwright capture workflow.
 - Usage: `python main.py <url>`
-- What it does:
-  - Starts a Playwright browser via `core.browser_manager.BrowserManager`.
-  - Creates extractor, storage, screenshot and annotation service instances:
-    - `ElementExtractor(repo)` — scans for elements and saves attributes to `repo`.
-    - `JsonStorage()` — writes the filtered JSON to `output/<base_name>.json`.
-    - `ScreenshotService()` — captures screenshots for each observed page state.
-    - `DrawAnnotator(base_name, repo)` — creates annotated screenshots for discovered elements.
-  - Installs a DOM MutationObserver inside the page (via `page.evaluate`) that calls a Python-exposed function `notify_dom_change` with debounce logic.
-  - Registers listeners:
-    - `framenavigated` — triggers extraction on main-frame navigation.
-    - `response` — triggers extraction for XHR/fetch responses.
-    - `domcontentloaded` — lightweight trigger for DOM updates.
-  - Extraction includes scanning main page and iframes, storing element metadata and taking screenshots. Screenshots and JSON files are produced per captured screen state.
+- Behavior:
+  - Starts Playwright via `core.browser_manager.BrowserManager`.
+  - Instantiates the core services:
+    - `ElementExtractor(repo)` — scans the page and frames, capturing attributes and element bounding boxes into `repo`.
+    - `JsonStorage()` — writes filtered JSON to `output/<base_name>.json`.
+    - `ScreenshotService()` — captures screenshots per screen state.
+    - `DrawAnnotator(base_name, repo)` — draws annotated screenshots from extracted element metadata.
+  - Injects a DOM MutationObserver into the page to detect DOM changes (with debounce) and exposes a Python callback `notify_dom_change`.
+  - Registers listeners for navigation, network responses, and DOMContentLoaded to trigger extraction when relevant events occur.
+  - Saves JSON and screenshots for each distinct screen state (versioned by screen key).
 
 core/browser_manager.py
 - Minimal Playwright wrapper:
-  - `start()` -> starts Playwright, launches chromium (headless set to False by default), creates a context and a page, and returns `(page, context)`.
-- Adjust if you want headless operation or extra launch options.
+  - `start()` initializes Playwright, launches Chromium (defaults to headful in this code), creates a context and a page, and returns `(page, context)`.
+- Recommendation: switch to headless for automated runs or expose launch options.
 
 extractor/element_extractor.py
-- Collects interactive elements using a set of CSS selectors (inputs, textarea, select, button, anchor, ARIA roles, data attributes, tabindex, etc.).
+- Scans a page using a list of selectors (inputs, textarea, select, button, anchors, roles, ARIA attributes, data attributes, tabindex).
 - For each element it captures:
   - bounding box (position & size)
-  - tag, type, id, name attribute, placeholder, autocomplete, title, aria-label, class, data attributes, label (found via label_utils)
-  - computed control type via `control_detector.detect_control(tag, type, role, element)`
-  - a normalized selector string via `normalize_selector`, currently transforming `input:not([type='hidden'])` into a consistent format like `input([type='hidden'])`.
-- Extracted element records are stored in a `repo["pages"][screen_name]` list and later saved to JSON.
+  - element metadata: tag, type, id, name, placeholder, autocomplete, title, aria-label, class, data attributes
+  - label: best-effort extracted label (via `label_utils`)
+  - control_type: heuristic determined by `control_detector.detect_control(...)`
+  - selector: normalized selector string (helper `normalize_selector`)
+- Appends unique element records to `repo["pages"][screen_name]`.
 
 extractor/control_detector.py
-- Contains heuristics to infer a control type (e.g., text input, button, link, checkbox, radio, select, etc.) based on element tag, type attribute, role and other characteristics.
-- Used by ElementExtractor to add a human-friendly `control_type` to each element's metadata.
+- Implements heuristics to map HTML tag, `type` attribute, ARIA role, and element characteristics to a friendly `control_type` label (e.g., text input, button, link, checkbox, radio, select).
+- Used by ElementExtractor to improve the semantic meaning of discovered elements.
 
 extractor/label_utils.py
-- Helpers to locate a label for a given element (searches for `<label for="...">`, parent label, aria-label, etc.) and return best-guess label text.
+- Helps identify associated label text for an element by checking:
+  - `<label for="id">` references
+  - parent `<label>` containers
+  - `aria-label` / `title` attributes
+  - nearby text heuristics
+- Returns best-guess label text for the element record.
 
 repository/json_filter.py
-- Functions to detect and remove duplicate or redundant element entries before saving final JSON. This keeps output compact and consistent across repeated captures.
+- Provides functions to remove duplicate or redundant element entries from the `repo` structure before saving. This keeps the output concise and avoids repeated identical entries across captures.
 
 repository/json_storage.py
 - `JsonStorage.save(repo, base_name)`:
-  - Calls `filter_duplicate_elements` to clean the repo structure.
-  - Ensures `output/` directory exists.
-  - Writes `output/<base_name>.json` containing the full `repo` object (pages, elements, base_url).
-  - Prints the saved path.
+  - Calls `filter_duplicate_elements(repo)` to deduplicate.
+  - Ensures the `output/` directory exists.
+  - Writes `output/<base_name>.json` with pretty-printed JSON describing `base_url` and `pages`.
+  - Prints confirmation of the saved file.
 
 screenshot/screenshot_service.py
-- Responsible for taking screenshots of the page for each captured screen version.
-- Called from `main.py` as `screenshot.take(page, base_name, versioned_name)`.
+- Responsible for capturing screenshots of the page for each captured screen state. Called from `main.py` as `screenshot.take(page, base_name, versioned_name)`.
 
 screenshot/draw_annotator.py
-- Uses the stored `repo` information to draw annotations (bounding boxes, labels, IDs) on screenshots so you can visually inspect discovered elements.
-- `annotator.draw_all()` is called at the end of `main.py` to annotate the final capture set.
+- Reads `repo` element metadata and draws bounding boxes/labels/identifiers on saved screenshots to produce annotated visual output.
+- `annotator.draw_all()` will generate annotated images for inspection.
 
 simple_design/main.py
-- A minimal Selenium example demonstrating a Page Object pattern:
-  - Creates a Chrome webdriver, navigates to a login URL, and uses a `LoginPage` helper to interact with UI fields.
-- Useful as a reference for how tests or automations might be structured. Not directly part of the Playwright capture flow but helpful for comparisons and design examples.
+- A short Selenium example demonstrating a Page Object pattern and how a test or automation might be structured.
+- Not directly part of the Playwright capture flow but provided as a reference or alternative design example.
 
 dom_parsing.py
-- Contains DOM parsing utilities and helpers (auxiliary processing of DOM/HTML when needed).
+- Collection of DOM parsing helpers and utilities for ancillary processing.
 
 Requirements & setup
 --------------------
-- Python 3.8+
-- Playwright (sync API) is used in the main capture flow. Install and set up Playwright browsers if you use `main.py`.
-  - Typical install:
-    ```bash
-    pip install -r requirements.txt
-    ```
-    (If `requirements.txt` lists Playwright, run `playwright install` afterward to install browser binaries.)
-- For the Selenium example in `simple_design/`, you will need Selenium and an appropriate WebDriver (e.g., chromedriver) on PATH.
+- Python 3.8+ recommended.
+- Install dependencies:
+  ```bash
+  python -m venv .venv
+  source .venv/bin/activate   # macOS / Linux
+  .\.venv\Scripts\activate    # Windows PowerShell / CMD
+  pip install -r requirements.txt
+  ```
+- If Playwright is used, install the browser binaries if required:
+  ```bash
+  playwright install
+  ```
+- For Selenium example usage, install Selenium and ensure the appropriate WebDriver (e.g., chromedriver) is available on your PATH.
 
 Running the main capture flow
 -----------------------------
-1. Create a virtual environment and install dependencies:
+1. Run the capture:
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate     # macOS / Linux
-   .\.venv\Scripts\activate      # Windows
-   pip install -r requirements.txt
+   python main.py https://example.com
+   ```
+   - The script opens a browser, observes DOM/network changes, extracts elements for each discovered screen state, captures screenshots, and writes JSON to `output/<base_name>.json`.
+   - Annotated screenshots are created by the draw annotator.
+
+Example snippet (illustrative)
+```python
+# example.py (illustrative)
+from extractor.element_extractor import ElementExtractor
+from core.browser_manager import BrowserManager
+
+browser = BrowserManager()
+page, context = browser.start()
+
+repo = {"base_url": "https://example.com", "pages": {}}
+extractor = ElementExtractor(repo)
+
+# run a manual capture
+extractor.extract(page, "home")
+```
+
+Output
+------
+- JSON files: `output/<base_name>.json` — structured data describing `base_url` and `pages`. Each page key maps to an array of element records containing attributes, bounding boxes, labels, and a computed `control_type`.
+- Screenshots: captured per screen version (name includes version suffix).
+- Annotated screenshots: produced by `screenshot/draw_annotator.py` to visually inspect discovered elements.
+
+Design notes & behavior
+-----------------------
+- Detection: a MutationObserver injected into the page watches for DOM changes; navigation and XHR/fetch responses also trigger extraction. Debounce logic prevents excessive firing on rapid DOM updates.
+- Robustness: the extractor skips elements without bounding boxes and wraps many operations in try/except to tolerate dynamic page conditions.
+- De-duplication: JSON output is cleaned by `json_filter` prior to writing.
+- Browser configuration: `BrowserManager` currently launches Chromium with `headless=False`. For automated runs or CI, change this option.
+
+Extending the project
+---------------------
+- Add adapters for other browsers or remote drivers.
+- Enhance `control_detector` heuristics to cover complex/custom controls.
+- Improve label/semantic extraction (NLP heuristics, contextual analysis).
+- Add unit tests, integration tests, and CI workflows to validate extraction quality across example pages.
+
+Contributing
+------------
+- Fork the repository, create a feature branch, add tests and documentation, and open a pull request.
+- Follow consistent coding style and include a short description of changes in your PR.
+
+License
+-------
+- Add a LICENSE file to the repository (e.g., MIT, Apache-2.0) and update this README accordingly.
+
+Maintainer
+----------
+- Repository owner / contact: alaminkawsar
+
+Acknowledgements
+----------------
+- Prototype inspired by common RPA, UI testing and accessibility tooling patterns (Playwright, Selenium, accessibility heuristics).
